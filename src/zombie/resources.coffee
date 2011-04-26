@@ -10,6 +10,7 @@
 
 inspect = require("util").inspect
 HTTP = require("http")
+HTTPS = require('https')
 QS = require("querystring")
 URL = require("url")
 VM = process.binding("evals")
@@ -205,10 +206,20 @@ class Resources extends Array
       cookies.addHeader headers
       # Pathname for HTTP request needs to start with / and include query
       # string.
+      httpHandler = HTTP
       secure = url.protocol == "https:"
-      url.port ||= if secure then 443 else 80
-      client = HTTP.createClient(url.port, url.hostname, secure)
-      request = client.request(method, "#{url.pathname}#{url.search || ""}", headers)
+      if secure
+        httpHandler = HTTPS
+        url.port ||= 443
+      else
+        url.port ||= 80
+      requestOptions =
+        host:    url.host,
+        port:    url.port,
+        method:  method,
+        path:    "#{url.pathname}#{url.search || ""}",
+        headers: headers
+      request = httpHandler.request(requestOptions)
 
       # First request has not resource, so create it and add to
       # Resources.  After redirect, we have a resource we're using.
@@ -218,7 +229,7 @@ class Resources extends Array
       window.browser.log -> "#{method} #{URL.format(url)}"
 
       # Connection error wired directly to callback.
-      client.on "error", callback
+      request.on "error", callback
       request.on "response", (response)=>
         response.setEncoding "utf8"
         body = ""
